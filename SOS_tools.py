@@ -1,12 +1,15 @@
 import numpy as np
 import pandas as pd
+import pylab as plt
+
+from collections import namedtuple
 
 class HiggsData:
     
     def __init__(self, file_name):
         self.data = pd.read_csv(file_name)
         self.num_instances = self.data.shape[0]
-        self.fraction = 1.
+        self.fraction = 0.5
         self.random_indices = None
         
         # Add a new column to keep an integer representation of the label
@@ -17,8 +20,11 @@ class HiggsData:
     def __getattr__(self, attrname):
         try:
             return getattr(self.wrapped, attrname)
-        except: 
-            return getattr(self.data, attrname)
+        except:
+            if attrname[:8] == 'cleaned_':
+                return getattr(self.data.replace(-999., np.nan), attrname[8:])
+            else:
+                return getattr(self.data, attrname)
                 
 
     # Plotting functions
@@ -43,19 +49,18 @@ class HiggsData:
 
     def set_valid_fraction(self, fraction):
         self.fraction = fraction
+        self._compute_random_indices()
 
     def _compute_random_indices(self):
-        if self.random_indices == None: 
-            self.random_indices = np.random.choice(self.data.index, int(self.fraction * self.num_instances), replace=False)
+        self.random_indices = np.random.choice(self.data.index, int(self.fraction * self.num_instances), replace=False)
 
     def get_data_fold(self, fold): 
         """
         Returns a named tuple (X, Y, Weights) 
         after computing the new weights
         """
-        from collections import namedtuple
-        assert fold in ['train', 'valid'], '%s is not a correct fold name. Use either train or valid.'
         
+        assert fold in ['train', 'valid'], '%s is not a correct fold name. Use either train or valid.'
 
         if self.random_indices == None: self._compute_random_indices()
 
@@ -78,9 +83,47 @@ class HiggsData:
         return namedtuple('Return', 'X Y Weights')(X, Y, W)
 
 
-    def split_weights(indices):
+    def generate_noisy_subset(self, number, noise):
         pass
-            
+        
+
+
+    def get_subset(self, number, noise=None):
+        indices = np.random.choice(self.data.index, number, replace=False)
+        
+        X = self.data[self.data_columns].ix[indices] 
+        # X += np.random.normal(0., 0.01, X.shape)
+        W = self.data.Weight.ix[indices]
+        Y = self.data.label_idx.ix[indices]
+
+        if noise:
+            X += np.random.normal(0., X.replace(-999., np.nan).std() * noise, X.shape)
+
+        return namedtuple('Return', 'X Y Weights')(X, Y, W)
+        return self.data.ix[np.random.choice(self.data.index, number, replace=False)]
+
+
+def step_wise_performance(predictor, X, Y, metric=None):
+    assert len(X) == len(Y)
+
+    num_iterations = predictor.n_estimators
+    if metric == None:
+        from sklearn.metrics import zero_one_loss
+        metric = zero_one_loss
+
+    stage_wise_perf = np.zeros(num_iterations)
+    if hasattr(predictor, 'staged_predict'):
+        # stage_wise_perf = list(predictor.staged_score(X, Y))
+        for i, pred in enumerate(predictor.staged_predict(X)):
+            stage_wise_perf[i] = metric(Y, pred)
+
+    else:
+        prediction = np.zeros(X.shape[0])
+        for i, t in enumerate(predictor.estimators_):
+            prediction += t.predict(X)
+            stage_wise_perf[i] = metric(Y, np.round( prediction / (i+1)))
+
+    return stage_wise_perf 
 
 def Calculate_AMS(s, b):
     assert s >= 0
