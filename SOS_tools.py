@@ -68,7 +68,7 @@ class HiggsData:
         self.fraction = fraction
         self._compute_random_indices()
 
-    def get_data_fold(self, fold): 
+    def get_data_fold(self, fold, normed_weights=True): 
         """
         Returns a named tuple (X, Y, Weights) 
         after computing the new weights
@@ -91,8 +91,9 @@ class HiggsData:
         Y = self.data.label_idx.ix[indices]
 
         # Recalculating the weight
-        for l_idx in (0, 1):
-            W[Y == l_idx] = 0.5 * W / W[Y == l_idx].sum()
+        if normed_weights:
+            for l_idx in (0, 1):
+                W[Y == l_idx] = 0.5 * W / W[Y == l_idx].sum()
 
         return namedtuple('Return', 'X Y Weights')(X, Y, W)
 
@@ -178,3 +179,8 @@ def plot_scores():
 def plot_original_weights():
     pass
 
+
+# %load_ext hierarchymagic
+# with open("output.dot", "w") as output_file:
+#     tree.export_graphviz(random_forest.estimators_[0]) #feature_names=vec.get_feature_names(){}
+# %%dot -f svg
