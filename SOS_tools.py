@@ -6,15 +6,24 @@ from collections import namedtuple
 
 class HiggsData:
     
-    def __init__(self, file_name):
+    def __init__(self, file_name, is_test_data=None):
         self.data = pd.read_csv(file_name)
         self.num_instances = self.data.shape[0]
         self.fraction = 0.5
         self.random_indices = None
-        
+        self.remaining_index = self.data.index
+        self.is_test_data = is_test_data
+
+        if is_test_data == None and 'test' in file_name:
+            self.is_test_data = is_test_data = True
+
         # Add a new column to keep an integer representation of the label
-        self.data['label_idx'] = self.data.Label.replace('b', 0).replace('s', 1).astype(np.uint8)
-        self.data_columns = self.data.columns.drop(['Label', 'label_idx', 'EventId', 'Weight'])
+        dropped_columns = ['EventId']
+        if not is_test_data: 
+            self.data['label_idx'] = self.data.Label.replace('b', 0).replace('s', 1).astype(np.uint8)
+            dropped_columns = ['Label', 'label_idx', 'EventId', 'Weight']
+        
+        self.data_columns = self.data.columns.drop(dropped_columns)
 
     # delegate to the DataFrame
     def __getattr__(self, attrname):
@@ -32,27 +41,32 @@ class HiggsData:
         self.data[self.data_columns].hist(bins=100, normed=True, figsize=(14,30), layout=(10, 3), weights=self.data.Weight) 
         
     def weights_hist(self):
-        self.data.hist(column='Weight', bins=50, alpha=1, normed=True, by=self.data.Label) 
-        
+        if not self.is_test_data:
+            self.data.hist(column='Weight', bins=50, alpha=1, normed=True, by=self.data.Label)
+        else:
+            print "[x] Error: You're kidding me? This is the test set."
 
     # Get the different dataset parts
     def get_attributes(self):
         return self.data[self.data_columns]
     
     def get_weights(self):
-        return self.data.Weight
+        if not self.is_test_data:
+            return self.data.Weight
+        else:
+            print "[x] Error: You're kidding me? This is the test set."
     
     def get_labels(self):
-        return self.data.label_idx
-    
+        if self.is_test_data:
+            return self.data.label_idx
+
     # Splitting the dataset into train and valid
+    def _compute_random_indices(self):
+        self.random_indices = np.random.choice(self.data.index, int(self.fraction * self.num_instances), replace=False)
 
     def set_valid_fraction(self, fraction):
         self.fraction = fraction
         self._compute_random_indices()
-
-    def _compute_random_indices(self):
-        self.random_indices = np.random.choice(self.data.index, int(self.fraction * self.num_instances), replace=False)
 
     def get_data_fold(self, fold): 
         """
@@ -82,15 +96,13 @@ class HiggsData:
 
         return namedtuple('Return', 'X Y Weights')(X, Y, W)
 
+    def get_subset(self, number, clear=False, noise=None):
 
-    def generate_noisy_subset(self, number, noise):
-        pass
-        
+        if clear: 
+            self.remaining_index = self.data.index
+        indices = np.random.choice(self.remaining_index, number, replace=False)
+        self.remaining_index.drop(indices)
 
-
-    def get_subset(self, number, noise=None):
-        indices = np.random.choice(self.data.index, number, replace=False)
-        
         X = self.data[self.data_columns].ix[indices] 
         # X += np.random.normal(0., 0.01, X.shape)
         W = self.data.Weight.ix[indices]
@@ -102,6 +114,8 @@ class HiggsData:
         return namedtuple('Return', 'X Y Weights')(X, Y, W)
         return self.data.ix[np.random.choice(self.data.index, number, replace=False)]
 
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 def step_wise_performance(predictor, X, Y, metric=None):
     assert len(X) == len(Y)
@@ -125,8 +139,42 @@ def step_wise_performance(predictor, X, Y, metric=None):
 
     return stage_wise_perf 
 
-def Calculate_AMS(s, b):
-    assert s >= 0
-    assert b >= 0
-    b_regul = 10.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+def learning_curve_plot(predictors, train_X, train_Y, valid_X, valid_Y, with_train=True, log_scale=False):
+    try:
+        predictors = predictors.items()
+    except:
+        predictors = {'': predictors}.items()
+
+    for name, predictor in predictors:
+        iterations = np.arange(1, predictor.n_estimators + 1)
+        p, = plt.plot(iterations, step_wise_performance(predictor, valid_X, valid_Y), '-', label=name + ' (test)')
+
+        if with_train:
+            plt.plot(iterations, step_wise_performance(predictor, train_X, train_Y), '--', color=p.get_color(), label=name + ' (train)')
+
+        plt.legend(loc='best')
+
+    if log_scale: plt.gca().set_xscale('log')
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+def Calculate_AMS(s, b, b_regul = 10.):
+    assert s >= 0 and b >= 0
     return np.sqrt(2 * ((s + b + b_regul) * np.log(1 + s / (b + b_regul)) - s))
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+def plot_AMS():
+    pass
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+def plot_scores():
+    pass
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+def plot_original_weights():
+    pass
+
