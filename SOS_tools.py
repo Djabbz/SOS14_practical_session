@@ -172,7 +172,10 @@ def _AMS(s, b, b_regul = 10.):
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def plot_AMS(scores, Y, W, weight_factor):
+def plot_AMS(scores, Y, W, weight_factor, current_ax=None):
+
+    if current_ax == None:
+        current_ax = plt.figure().add_subplot(111)
 
     sorted_indices = scores[:,1].argsort()
     signal_weight_sum = W[Y == 1].sum()
@@ -201,27 +204,11 @@ def plot_AMS(scores, Y, W, weight_factor):
         else:
             bkgd_weight_sum -= W[current_instance]
 
-    plt.plot(ams)
-    plt.xlim(0, len(sorted_indices)-1)
-
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
-def save_model(predictor, file_name):
-    import cPickle as cP
-    with open(file_name, 'w') as f:
-        cP.dump(predictor, f, protocol=-1)
+    current_ax.plot(ams)
+    # current_ax.xlim(0, len(sorted_indices)-1)
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def load_model(file_name):
-    import cPickle as cP
-    with open(file_name) as f:
-        predictor = cP.load(f)
-    return predictor
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 def hist_scores(scores, labels, weights=None, **kwargs):
     if weights != None:
@@ -229,7 +216,7 @@ def hist_scores(scores, labels, weights=None, **kwargs):
         b_w = weights[labels==0]
     else:
         s_w = b_w = None
-        
+    
     kwargs['bins'] = kwargs.get('bins', 100)
     kwargs['normed'] = kwargs.get('normed', True)
     kwargs['histtype'] = kwargs.get('histtype', 'stepfilled')
@@ -243,7 +230,7 @@ def hist_scores(scores, labels, weights=None, **kwargs):
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def hist_scores_log(scores, labels, weights=None, ln=True, **kwargs): #plot_ams=False
+def hist_scores_log(scores, labels, weights=None, ln=True, plot_ams=False, **kwargs): 
 
     if weights != None:
         s_w = weights[labels==1]
@@ -260,19 +247,72 @@ def hist_scores_log(scores, labels, weights=None, ln=True, **kwargs): #plot_ams=
     hist_b, bins_b = np.histogram(scores[:,1][labels==0], weights=b_w, **kwargs)
 
     if ln:
-        hist_s = np.log(hist_s)
-        hist_b = np.log(hist_b)
+        hist_s = np.log(hist_s) 
+        hist_b = np.log(hist_b) 
+        hist_min = min(hist_s.min(), hist_b.min())
+        hist_s -= hist_min 
+        hist_b -= hist_min 
 
     plt.bar(bins_s[:-1], hist_s, width=width, color='red', alpha=.5, label='signal')
     plt.bar(bins_b[:-1], hist_b, width=width, alpha=.5, label='bkgd')
-    plt.legend(loc='best')
-    
-    # if plot_ams:
-    #     plot_AMS(scores, labels, weights, 2.)
 
-#     gca().set_yscale('log')
-#     print gca().get_yscale()
-#     plt.semilogy()
+    plt.legend(loc='best')
+
+    if plot_ams:
+        # plot_AMS(scores, labels, weights, 2., current_ax=ax)
+        sorted_indices = scores[:,1].argsort()
+        signal_weight_sum = weights[labels == 1].sum()
+        bkgd_weight_sum = weights[labels == 0].sum()
+
+        if 'weight_factor' not in kwargs:
+            print '[!] Please specify the weight_factor in the parameters list.'
+            return 
+
+        weight_factor = kwargs['weight_factor']
+
+        ams = np.zeros(sorted_indices.shape[0])
+        max_ams = 0
+        threshold = -1
+
+        for i, current_instance in enumerate(sorted_indices):
+            try:
+                ams[i] = _AMS(signal_weight_sum * weight_factor, bkgd_weight_sum * weight_factor)
+            except:
+                # tmp code for debugging the numerical error
+                print i, '/', len(sorted_indices), '|', current_instance
+                print signal_weight_sum
+                print bkgd_weight_sum
+                raise
+
+            if ams[i] > max_ams:
+                max_ams = ams[i]
+                threshold = i
+
+            if labels[current_instance] == 1:
+                signal_weight_sum -= weights[current_instance]
+            else:
+                bkgd_weight_sum -= weights[current_instance]
+
+        plt.plot(ams)
+        # plt.xlim(0, len(sorted_indices)-1)
+    
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+def save_model(predictor, file_name):
+    import cPickle as cP
+    with open(file_name, 'w') as f:
+        cP.dump(predictor, f, protocol=-1)
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+def load_model(file_name):
+    import cPickle as cP
+    with open(file_name) as f:
+        predictor = cP.load(f)
+    return predictor
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 
