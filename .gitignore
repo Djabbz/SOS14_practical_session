@@ -1,1 +1,5 @@
 .ipynb_checkpoints
+output.dot
+rf_1000.pickle
+SOS_tools.pyc
+tree.dot

@@ -37,13 +37,24 @@ class HiggsData:
                 
 
     # Plotting functions
-    def attributes_hist(self):
-        self.data[self.data_columns].hist(bins=100, normed=True, figsize=(14,30), layout=(10, 3), weights=self.data.Weight) 
+    def _attr_hist(self, attr, **kwargs):
+
+        alpha = kwargs['alpha', 0.5]
+        bins = kwargs['bins', 50]
+        normed = kwargs['normed', True]
+
+        self.data.hist(column=attr, bins=bins, alpha=alpha, normed=normed, by=self.data.Label)
+
+    def attributes_hist(self, **kwargs):
+        for c in self.data_columns:
+            self._attr_hist(c, kwargs)
+
+    def attributes_hist_grid(self):
         self.data[self.data_columns].hist(bins=100, normed=True, figsize=(14,30), layout=(10, 3), weights=self.data.Weight) 
         
     def weights_hist(self):
         if not self.is_test_data:
-            self.data.hist(column='Weight', bins=50, alpha=1, normed=True, by=self.data.Label)
+            self._attr_hist('Weight')
         else:
             print "[x] Error: You're kidding me? This is the test set."
 
@@ -131,13 +142,13 @@ def step_wise_performance(predictor, X, Y, weights=None, metric=None):
     if hasattr(predictor, 'staged_predict'):
         # stage_wise_perf = list(predictor.staged_score(X, Y))
         for i, pred in enumerate(predictor.staged_predict(X)):
-            stage_wise_perf[i] = metric(Y, pred)
+            stage_wise_perf[i] = metric(Y, pred, sample_weight=weights)
 
     else:
         prediction = np.zeros(X.shape[0])
         for i, t in enumerate(predictor.estimators_):
             prediction += t.predict(X)
-            stage_wise_perf[i] = metric(Y, np.round( prediction / (i+1)))
+            stage_wise_perf[i] = metric(Y, np.round( prediction / (i+1)), sample_weight=weights)
 
     return stage_wise_perf 
 
@@ -222,8 +233,8 @@ def hist_scores(scores, labels, weights=None, **kwargs):
     kwargs['normed'] = kwargs.get('normed', True)
     kwargs['histtype'] = kwargs.get('histtype', 'stepfilled')
 
-    plt.hist(scores[:,1][labels==1], alpha=.5, label='signal', weights=s_w, **kwargs)
-    plt.hist(scores[:,1][labels==0], alpha=.5, label='bkgd', weights=b_w, **kwargs)
+    plt.hist(scores[:,1][labels==1], alpha=.5, label='signal', weights=s_w, color='blue', **kwargs)
+    plt.hist(scores[:,1][labels==0], alpha=.5, label='bkgd', weights=b_w, color='red', **kwargs)
     plt.legend(loc='best')
 #     gca().set_yscale('log')
 #     print gca().get_yscale()
@@ -259,8 +270,8 @@ def hist_scores_log(scores, labels, weights=None, ln=True, plot_ams=False, **kwa
         hist_s -= hist_min 
         hist_b -= hist_min 
 
-    plt.bar(bins_s[:-1], hist_s, width=width, color='red', alpha=.5, label='signal')
-    plt.bar(bins_b[:-1], hist_b, width=width, alpha=.5, label='bkgd')
+    plt.bar(bins_s[:-1], hist_s, width=width, color='blue', alpha=.5, label='signal')
+    plt.bar(bins_b[:-1], hist_b, width=width, color='red', alpha=.5, label='bkgd')
 
     plt.legend(loc='best')
 
