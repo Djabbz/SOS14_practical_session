@@ -39,6 +39,7 @@ class HiggsData:
     # Plotting functions
     def attributes_hist(self):
         self.data[self.data_columns].hist(bins=100, normed=True, figsize=(14,30), layout=(10, 3), weights=self.data.Weight) 
+        self.data[self.data_columns].hist(bins=100, normed=True, figsize=(14,30), layout=(10, 3), weights=self.data.Weight) 
         
     def weights_hist(self):
         if not self.is_test_data:
@@ -118,7 +119,7 @@ class HiggsData:
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def step_wise_performance(predictor, X, Y, metric=None):
+def step_wise_performance(predictor, X, Y, weights=None, metric=None):
     assert len(X) == len(Y)
 
     num_iterations = predictor.n_estimators
@@ -142,7 +143,7 @@ def step_wise_performance(predictor, X, Y, metric=None):
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def learning_curve_plot(predictors, train_X, train_Y, valid_X, valid_Y, with_train=True, log_scale=False):
+def learning_curve_plot(predictors, train_X, train_Y, valid_X, valid_Y, weights=None, with_train=True, log_scale=False):
     try:
         predictors = predictors.items()
     except:
@@ -150,10 +151,10 @@ def learning_curve_plot(predictors, train_X, train_Y, valid_X, valid_Y, with_tra
 
     for name, predictor in predictors:
         iterations = np.arange(1, predictor.n_estimators + 1)
-        p, = plt.plot(iterations, step_wise_performance(predictor, valid_X, valid_Y), '-', label=name + ' (test)')
+        p, = plt.plot(iterations, step_wise_performance(predictor, valid_X, valid_Y, weights), '-', label=name + ' (test)')
 
         if with_train:
-            plt.plot(iterations, step_wise_performance(predictor, train_X, train_Y), '--', color=p.get_color(), label=name + ' (train)')
+            plt.plot(iterations, step_wise_performance(predictor, train_X, train_Y, weights), '--', color=p.get_color(), label=name + ' (train)')
 
         plt.legend(loc='best')
 
@@ -243,6 +244,11 @@ def hist_scores_log(scores, labels, weights=None, ln=True, plot_ams=False, **kwa
 
     width = 1./ kwargs.get('bins', 50)
 
+    weight_factor = None
+    if 'weight_factor' in kwargs:
+        weight_factor = kwargs['weight_factor']
+        del kwargs['weight_factor']
+
     hist_s, bins_s = np.histogram(scores[:,1][labels==1], weights=s_w, **kwargs)
     hist_b, bins_b = np.histogram(scores[:,1][labels==0], weights=b_w, **kwargs)
 
@@ -259,16 +265,16 @@ def hist_scores_log(scores, labels, weights=None, ln=True, plot_ams=False, **kwa
     plt.legend(loc='best')
 
     if plot_ams:
+
+        if weight_factor == None:
+            print '[!] Please specify the weight_factor in the parameters list.'
+            return 
+
         # plot_AMS(scores, labels, weights, 2., current_ax=ax)
         sorted_indices = scores[:,1].argsort()
         signal_weight_sum = weights[labels == 1].sum()
         bkgd_weight_sum = weights[labels == 0].sum()
 
-        if 'weight_factor' not in kwargs:
-            print '[!] Please specify the weight_factor in the parameters list.'
-            return 
-
-        weight_factor = kwargs['weight_factor']
 
         ams = np.zeros(sorted_indices.shape[0])
         max_ams = 0
