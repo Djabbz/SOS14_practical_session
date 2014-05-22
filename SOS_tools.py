@@ -161,23 +161,102 @@ def learning_curve_plot(predictors, train_X, train_Y, valid_X, valid_Y, with_tra
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def Calculate_AMS(s, b, b_regul = 10.):
-    assert s >= 0 and b >= 0
+def _AMS(s, b, b_regul = 10.):
+
+### FIXME: numerical errors lead to negative s and b
+### tmp modifications. 
+#     assert s >= 0 and b >= 0
+    if s < 0: s=0
+    if b < 0: b=0
     return np.sqrt(2 * ((s + b + b_regul) * np.log(1 + s / (b + b_regul)) - s))
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def plot_AMS():
-    pass
+def plot_AMS(scores, Y, W, weight_factor):
+
+    sorted_indices = scores[:,1].argsort()
+    signal_weight_sum = W[Y == 1].sum()
+    bkgd_weight_sum = W[Y == 0].sum()
+
+    ams = np.zeros(sorted_indices.shape[0])
+    max_ams = 0
+    threshold = -1
+
+    for i, current_instance in enumerate(sorted_indices):
+        try:
+            ams[i] = _AMS(signal_weight_sum * weight_factor, bkgd_weight_sum * weight_factor)
+        except:
+            # tmp code for debugging the numerical error
+            print i, '/', len(sorted_indices), '|', current_instance
+            print signal_weight_sum
+            print bkgd_weight_sum
+            raise
+
+        if ams[i] > max_ams:
+            max_ams = ams[i]
+            threshold = i
+
+        if Y[current_instance] == 1:
+            signal_weight_sum -= W[current_instance]
+        else:
+            bkgd_weight_sum -= W[current_instance]
+
+    plt.plot(ams)
+    plt.xlim(0, len(sorted_indices)-1)
+
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def plot_scores():
-    pass
+
+def save_model(predictor, file_name):
+    import cPickle as cP
+    with open(file_name, 'w') as f:
+        cP.dump(predictor, f, protocol=-1)
+
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def plot_original_weights():
-    pass
+def load_model(file_name):
+    import cPickle as cP
+    with open(file_name) as f:
+        predictor = cP.load(f)
+    return predictor
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+def plot_scores(scores, labels, weights=None, **kwargs):
+    if weights != None:
+        s_w = weights[labels==1]
+        b_w = weights[labels==0]
+    else:
+        s_w = b_w = None
+        
+    plt.hist(scores[:,1][labels==1], alpha=.5, label='signal', weights=s_w, **kwargs)
+    plt.hist(scores[:,1][labels==0], alpha=.5, label='bkgd', weights=b_w, **kwargs)
+    plt.legend(loc='best')
+#     gca().set_yscale('log')
+#     print gca().get_yscale()
+#     plt.semilogy()
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+def plot_log(scores, labels, weights=None, **kwargs):
+    if weights != None:
+        s_w = weights[labels==1]
+        b_w = weights[labels==0]
+    else:
+        s_w = b_w = None
+        
+    plt.hist_s, bins_s = np.histogram(scores[:,1][labels==1], weights=s_w, **kwargs)
+    plt.bar(bins_s[:-1], np.log(hist_s), width=.02, color='red', alpha=.5, label='signal')
+    
+    hist_b, bins_b = np.histogram(scores[:,1][labels==0], weights=b_w, **kwargs)
+    plt.bar(bins_b[:-1], np.log(hist_b), width=.02, alpha=.5, label='bkgd')
+    legend(loc='best')
+    
+#     gca().set_yscale('log')
+#     print gca().get_yscale()
+#     plt.semilogy()
+
 
 
 # %load_ext hierarchymagic
