@@ -223,13 +223,17 @@ def load_model(file_name):
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def plot_scores(scores, labels, weights=None, **kwargs):
+def hist_scores(scores, labels, weights=None, **kwargs):
     if weights != None:
         s_w = weights[labels==1]
         b_w = weights[labels==0]
     else:
         s_w = b_w = None
         
+    kwargs['bins'] = kwargs.get('bins', 100)
+    kwargs['normed'] = kwargs.get('normed', True)
+    kwargs['histtype'] = kwargs.get('histtype', 'stepfilled')
+
     plt.hist(scores[:,1][labels==1], alpha=.5, label='signal', weights=s_w, **kwargs)
     plt.hist(scores[:,1][labels==0], alpha=.5, label='bkgd', weights=b_w, **kwargs)
     plt.legend(loc='best')
@@ -239,20 +243,33 @@ def plot_scores(scores, labels, weights=None, **kwargs):
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def plot_log(scores, labels, weights=None, **kwargs):
+def hist_scores_log(scores, labels, weights=None, ln=True, **kwargs): #plot_ams=False
+
     if weights != None:
         s_w = weights[labels==1]
         b_w = weights[labels==0]
     else:
         s_w = b_w = None
         
-    plt.hist_s, bins_s = np.histogram(scores[:,1][labels==1], weights=s_w, **kwargs)
-    plt.bar(bins_s[:-1], np.log(hist_s), width=.02, color='red', alpha=.5, label='signal')
-    
+    kwargs['bins'] = kwargs.get('bins', 100)
+    kwargs['normed'] = kwargs.get('normed', True)
+
+    width = 1./ kwargs.get('bins', 50)
+
+    hist_s, bins_s = np.histogram(scores[:,1][labels==1], weights=s_w, **kwargs)
     hist_b, bins_b = np.histogram(scores[:,1][labels==0], weights=b_w, **kwargs)
-    plt.bar(bins_b[:-1], np.log(hist_b), width=.02, alpha=.5, label='bkgd')
-    legend(loc='best')
+
+    if ln:
+        hist_s = np.log(hist_s)
+        hist_b = np.log(hist_b)
+
+    plt.bar(bins_s[:-1], hist_s, width=width, color='red', alpha=.5, label='signal')
+    plt.bar(bins_b[:-1], hist_b, width=width, alpha=.5, label='bkgd')
+    plt.legend(loc='best')
     
+    # if plot_ams:
+    #     plot_AMS(scores, labels, weights, 2.)
+
 #     gca().set_yscale('log')
 #     print gca().get_yscale()
 #     plt.semilogy()
