@@ -9,8 +9,8 @@ class HiggsData:
     def __init__(self, file_name, is_test_data=None):
         self.data = pd.read_csv(file_name)
         self.num_instances = self.data.shape[0]
-        self.fraction = 0.5
-        self.random_indices = None
+        self.split_fractions = (0.3, 0.3)
+        self.random_indices = self._compute_random_indices()
         self.remaining_index = self.data.index
         self.is_test_data = is_test_data
 
@@ -39,22 +39,62 @@ class HiggsData:
     # Plotting functions
     def _attr_hist(self, attr, **kwargs):
 
-        alpha = kwargs['alpha', 0.5]
-        bins = kwargs['bins', 50]
-        normed = kwargs['normed', True]
+        plt.figure()
+        alpha = kwargs.get('alpha', 0.5)
+        bins = kwargs.get('bins', 100)
+        normed = kwargs.get('normed', True)
 
-        self.data.hist(column=attr, bins=bins, alpha=alpha, normed=normed, by=self.data.Label)
 
-    def attributes_hist(self, **kwargs):
-        for c in self.data_columns:
-            self._attr_hist(c, kwargs)
+        signal_data = self.data[self.data.label_idx == 1][attr].values
+        bkgd_data = self.data[self.data.label_idx == 0][attr].values
+
+        signal_weights = self.data[self.data.label_idx == 1].Weight.values
+        bkgd_weights = self.data[self.data.label_idx == 0].Weight.values
+
+        # self.data.hist(column=attr, bins=bins, alpha=alpha, normed=normed, by=self.data.Label, **kwargs)
+
+        # self.data[self.data.label_idx == 1].hist(column=attr, bins=bins, alpha=alpha, normed=normed, label='signal', color='blue', **kwargs)
+        # self.data[self.data.label_idx == 0].hist(column=attr, bins=bins, alpha=alpha, normed=normed, label='bkgd', color='red', **kwargs)
+
+        plt.hist(signal_data, bins=bins, alpha=alpha, normed=normed, label='signal', color='blue', weights=signal_weights)
+        plt.hist(bkgd_data, bins=bins, alpha=alpha, normed=normed, label='bkgd', color='red', weights=bkgd_weights)
+        plt.legend(loc='best')
+
+    def attributes_hist(self, columns=None, **kwargs):
+        """
+        Plot the histogram of the specified columns. If no column is specified,
+        it plots all the columns. The method also accepts all matplotlib hist() parameters.
+
+        Parameters:
+        -----------
+        columns: list of column names.
+        """
+
+        from IPython.display import HTML
+
+        if columns == None: columns = self.data_columns
+        else:
+            if isinstance(columns, basestring):
+                columns = [columns]
+
+        for c in columns:
+            self._attr_hist(c, **kwargs)
+            
 
     def attributes_hist_grid(self):
-        self.data[self.data_columns].hist(bins=100, normed=True, figsize=(14,30), layout=(10, 3), weights=self.data.Weight) 
+        """
+        Plot the histograms of all the columns in a grid.
+        """
+        self.data.hist(column=self.data_columns, bins=100, normed=True, figsize=(14,30), layout=(10, 3), weights=self.data.Weight) 
         
     def weights_hist(self):
+        """
+        Plot the histogram of the weights.
+        """
+
         if not self.is_test_data:
-            self._attr_hist('Weight')
+            self.data.hist(column='Weight', bins=50, alpha=1, normed=True, by=self.data.Label)
+            # self._attr_hist('Weight', alpha=1., bins=50)
         else:
             print "[x] Error: You're kidding me? This is the test set."
 
@@ -74,19 +114,38 @@ class HiggsData:
 
     # Splitting the dataset into train and valid
     def _compute_random_indices(self):
-        self.random_indices = np.random.choice(self.data.index, int(self.fraction * self.num_instances), replace=False)
+        self.random_indices = np.random.permutation(self.data.index)
+        # self.random_indices = np.random.choice(self.data.index, int(self.fraction * self.num_instances), replace=False)
 
-    def set_valid_fraction(self, fraction):
-        self.fraction = fraction
+
+    def set_split_fractions(self, fractions, ):
+        """
+        Set the fraction rates of the training and validation sets.
+
+        Parameters:
+        -----------
+        fractions: A single real value or couple of real values. If it is a single value, the data is 
+        split in two folds, train and test, and the value corresponds to the train set proportion.
+        If it is a couple, the data is split in three folds, train, valid, and test. The couple of values 
+        correspond then to the proportions of the train and valid data respectively.
+        """
+
+        try:
+            iter(fractions)
+        except TypeError:
+            fractions = (fractions,)
+
+        self.split_fractions = fractions
         self._compute_random_indices()
 
-    def get_data_fold(self, fold, normed_weights=True): 
+
+    def get_data_fold(self, fold,normed_weights=True, number=None):
         """
         Returns a named tuple (X, Y, Weights) 
         after computing the new weights
         """
         
-        assert fold in ['train', 'valid'], '%s is not a correct fold name. Use either train or valid.'
+        assert fold in ['train', 'valid', 'test'], '%s is not a correct fold name. Use either train, valid, or test.'
 
         if self.random_indices == None: self._compute_random_indices()
 
@@ -142,13 +201,13 @@ def step_wise_performance(predictor, X, Y, weights=None, metric=None):
     if hasattr(predictor, 'staged_predict'):
         # stage_wise_perf = list(predictor.staged_score(X, Y))
         for i, pred in enumerate(predictor.staged_predict(X)):
-            stage_wise_perf[i] = metric(Y, pred, sample_weight=weights)
+            stage_wise_perf[i] = metric(Y, pred) #, sample_weight=weights
 
     else:
         prediction = np.zeros(X.shape[0])
         for i, t in enumerate(predictor.estimators_):
             prediction += t.predict(X)
-            stage_wise_perf[i] = metric(Y, np.round( prediction / (i+1)), sample_weight=weights)
+            stage_wise_perf[i] = metric(Y, np.round( prediction / (i+1))) #, sample_weight=weights
 
     return stage_wise_perf 
 
