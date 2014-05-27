@@ -3,3 +3,5 @@ output.dot
 rf_1000.pickle
 SOS_tools.pyc
 tree.dot
+rf_10.pickle
+rf_100.pickle
