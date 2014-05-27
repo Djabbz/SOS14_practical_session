@@ -103,17 +103,17 @@ class HiggsData:
 
     # Get the different dataset parts
     def get_attributes(self):
-        return self.data[self.data_columns]
+        return self.data[self.data_columns].values
     
     def get_weights(self):
         if not self.is_test_data:
-            return self.data.Weight
+            return self.data.Weight.values
         else:
             print "[x] Error: You're kidding me? This is the test set."
     
     def get_labels(self):
         if self.is_test_data:
-            return self.data.label_idx
+            return self.data.label_idx.values
 
     # Splitting the dataset 
     def _compute_random_indices(self):
@@ -255,7 +255,6 @@ def plot_AMS(scores, labels, weights, weight_factor, **kwargs):
     signal_weight_sum = weights[labels == 1].sum()
     bkgd_weight_sum = weights[labels == 0].sum()
 
-    print signal_weight_sum
     ams = np.zeros(sorted_indices.shape[0])
     max_ams = 0
     threshold = -1
@@ -354,6 +353,20 @@ def hist_scores_log(scores, labels, weights=None, ln=True, **kwargs):
 
     plt.legend(loc='best')
     # plt.xlim((0., 1.))
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+def generate_submission_file(file_name, predictor, higgs_data):
+    
+    data = higgs_data.get_attributes()
+    scores = predictor.predict_proba(data)[:, 1]
+    ranks = np.argsort(np.argsort(scores))
+    indices = higgs_data.EventId.values
+    predictions = map(lambda x: 'b' if x else 's', predictor.predict(data))
+    
+    with open(file_name, 'w') as f:
+        f.write('EventId,RankOrder,Class\n')
+        np.savetxt(f, zip(indices, ranks, predictions), delimiter=',', fmt='%s')
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
