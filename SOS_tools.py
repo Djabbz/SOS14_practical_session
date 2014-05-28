@@ -184,7 +184,7 @@ class HiggsData:
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def step_wise_performance(predictor, X, Y, weights=None, metric=None):
+def _step_wise_performance(predictor, X, Y, weights=None, metric=None):
     assert len(X) == len(Y)
 
     if hasattr(weights, 'values'): weights = weights.values
@@ -223,10 +223,10 @@ def learning_curve_plot(predictors, valid_X, valid_Y, valid_W=None, train_X=None
 
     for name, predictor in predictors:
         iterations = np.arange(1, predictor.n_estimators + 1)
-        p, = plt.plot(iterations, step_wise_performance(predictor, valid_X, valid_Y, valid_W), '-', label=name + ' (test)')
+        p, = plt.plot(iterations, _step_wise_performance(predictor, valid_X, valid_Y, valid_W), '-', label=name + ' (test)')
 
         if with_train:
-            plt.plot(iterations, step_wise_performance(predictor, train_X, train_Y, train_W), '--', color=p.get_color(), label=name + ' (train)')
+            plt.plot(iterations, _step_wise_performance(predictor, train_X, train_Y, train_W), '--', color=p.get_color(), label=name + ' (train)')
 
         plt.legend(loc='best')
 
@@ -246,6 +246,12 @@ def _AMS(s, b, b_regul = 10.):
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 def plot_AMS(scores, labels, weights, weight_factor, **kwargs):
+    """
+    Compute the AMS for all possible decision thresholds and plot the 
+    corresponding curve. 
+
+    Returns the couple (best_AMS, threshold)
+    """
 
     if hasattr(scores, 'values'): scores = scores.values
     if hasattr(labels, 'values'): labels = labels.values
@@ -280,7 +286,59 @@ def plot_AMS(scores, labels, weights, weight_factor, **kwargs):
 
     plt.plot(ams, **kwargs)
     if 'label' in kwargs: plt.legend(loc='best')
-    # current_ax.xlim(0, len(sorted_indices)-1)
+
+    plt.xlim(0, len(sorted_indices)-1)
+
+    # print "[+] Best AMS:", max_ams
+    return namedtuple('Return', 'best_AMS threshold')(max_ams, threshold)
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+def plot_AMS_2(scores, labels, weights, weight_factor, **kwargs):
+    """
+    Compute the AMS for all possible decision thresholds and plot the 
+    corresponding curve. 
+
+    Returns the couple (best_AMS, threshold)
+    """
+
+    if scores.ndim == 2: 
+        scores = scores[:,1]
+
+    if hasattr(scores, 'values'): scores = scores.values
+    if hasattr(labels, 'values'): labels = labels.values
+    if hasattr(weights, 'values'): weights = weights.values
+
+    sorted_indices = scores.argsort()
+    sorted_scores = scores[sorted_indices]
+    signal_weight_sum = weights[labels == 1].sum()
+    bkgd_weight_sum = weights[labels == 0].sum()
+
+    ams = [] #np.zeros(sorted_indices.shape[0])
+    max_ams = 0
+    threshold = scores[sorted_indices][0] - 0.0001
+
+    for current_instance, s in zip(sorted_indices, sorted_scores):
+        current_ams = _AMS(signal_weight_sum * weight_factor, bkgd_weight_sum * weight_factor)
+        ams.append(current_ams)
+        if current_ams > max_ams:
+            max_ams = current_ams
+            last_threshold = threshold
+            threshold = s
+
+        if labels[current_instance] == 1:
+            signal_weight_sum -= weights[current_instance]
+        else:
+            bkgd_weight_sum -= weights[current_instance]
+
+
+    plt.plot(sorted_scores, ams, **kwargs)
+    if 'label' in kwargs: plt.legend(loc='best')
+
+    # plt.xlim(0, len(sorted_indices)-1)
+
+    # print "[+] Best AMS:", max_ams
+    return namedtuple('Return', 'best_AMS threshold')(max_ams, threshold)
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
