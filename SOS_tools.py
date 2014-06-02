@@ -428,7 +428,7 @@ def generate_submission_file(file_name, predictor, higgs_data, threshold):
     ranks = np.argsort(np.argsort(scores))
     indices = higgs_data.EventId.values
 
-    predictions = map(lambda x: 'b' if x else 's', (scores > threshold).astype(int)) 
+    predictions = map(lambda x: 's' if x else 'b', (scores > threshold).astype(int)) 
     
     with open(file_name, 'w') as f:
         f.write('EventId,RankOrder,Class\n')
