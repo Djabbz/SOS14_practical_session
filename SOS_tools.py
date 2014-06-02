@@ -421,13 +421,14 @@ def hist_scores_log(scores, labels, weights=None, ln=True, **kwargs):
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def generate_submission_file(file_name, predictor, higgs_data):
+def generate_submission_file(file_name, predictor, higgs_data, threshold):
     
     data = higgs_data.get_attributes()
     scores = predictor.predict_proba(data)[:, 1]
     ranks = np.argsort(np.argsort(scores))
     indices = higgs_data.EventId.values
-    predictions = map(lambda x: 'b' if x else 's', predictor.predict(data))
+
+    predictions = map(lambda x: 'b' if x else 's', (scores > threshold).astype(int)) 
     
     with open(file_name, 'w') as f:
         f.write('EventId,RankOrder,Class\n')
