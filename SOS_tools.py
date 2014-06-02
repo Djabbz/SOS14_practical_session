@@ -7,6 +7,13 @@ from collections import namedtuple
 from sklearn.utils import check_arrays, column_or_1d
 from sklearn.utils.multiclass import type_of_target
 
+pd.set_option('display.mpl_style', 'default') # Make the graphs a bit prettier
+pd.set_option('display.max_columns', None) # Otherwise, the columns will be truncated
+pd.set_option('display.max_rows', 35)
+
+plt.rcParams['figure.figsize'] = (10.0, 6.0)
+plt.rcParams['axes.linewidth'] = 2.5
+
 class HiggsData:
     
     def __init__(self, file_name, is_test_data=None):
@@ -214,7 +221,7 @@ def learning_curve_plot(predictors, valid_X, valid_Y, valid_W=None, train_X=None
     if hasattr(valid_W, 'values'): valid_W = valid_W.values
     if train_W != None and hasattr(train_W, 'values'): train_W = weights.values
 
-    if train_X != None and valid_X != None: with_train = True
+    with_train = True if (train_X != None and valid_X != None) else False
 
     try:
         predictors = predictors.items()
@@ -294,7 +301,7 @@ def plot_AMS(scores, labels, weights, weight_factor, **kwargs):
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def plot_AMS_2(scores, labels, weights, weight_factor, **kwargs):
+def plot_AMS_2(scores, labels, weights, weight_factor, plot=True, **kwargs):
     """
     Compute the AMS for all possible decision thresholds and plot the 
     corresponding curve. 
@@ -316,12 +323,12 @@ def plot_AMS_2(scores, labels, weights, weight_factor, **kwargs):
 
     ams = [] #np.zeros(sorted_indices.shape[0])
     max_ams = 0
-    threshold = scores[sorted_indices][0] - 0.0001
+    last_threshold = threshold = scores[sorted_indices][0] - 0.0001
 
     for current_instance, s in zip(sorted_indices, sorted_scores):
         current_ams = _AMS(signal_weight_sum * weight_factor, bkgd_weight_sum * weight_factor)
         ams.append(current_ams)
-        if current_ams > max_ams:
+        if current_ams > max_ams : #and last_threshold != threshold
             max_ams = current_ams
             last_threshold = threshold
             threshold = s
@@ -331,14 +338,14 @@ def plot_AMS_2(scores, labels, weights, weight_factor, **kwargs):
         else:
             bkgd_weight_sum -= weights[current_instance]
 
+    mid_threshold = (threshold + last_threshold) / 2.
 
-    plt.plot(sorted_scores, ams, **kwargs)
-    if 'label' in kwargs: plt.legend(loc='best')
-
-    # plt.xlim(0, len(sorted_indices)-1)
-
-    # print "[+] Best AMS:", max_ams
-    return namedtuple('Return', 'best_AMS threshold')(max_ams, threshold)
+    if plot:
+        plt.plot(sorted_scores, ams, **kwargs)
+        plt.axvline(mid_threshold, color='black', linewidth=1)
+        if 'label' in kwargs: plt.legend(loc='best')
+    
+    return namedtuple('Return', 'best_AMS threshold')(max_ams, mid_threshold)
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
